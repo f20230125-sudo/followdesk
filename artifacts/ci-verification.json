@@ -1,0 +1,35 @@
+{
+  "verifiedAt": "2026-10-26 18:20:46 UTC",
+  "hostedApplicationVerified": false,
+  "postgresServiceTestsVerified": true,
+  "linuxDependencyInstallationVerified": true,
+  "applications": [
+    {
+      "application": "followdesk",
+      "repository": "https://github.com/f20230125-sudo/followdesk",
+      "sourceCommit": "f1114aa9ff1924e018564ca65b2e24cfa95a9e46",
+      "sourceTree": "f36f31f67852f18e566ef05baad7edf7b4099060",
+      "workflowRunId": 40375955204,
+      "workflowUrl": "https://github.com/f20230125-sudo/followdesk/actions/runs/40375955204",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "sqlite",
+          "conclusion": "success",
+          "id": 121758950853,
+          "summaries": [
+            "89 passed in 8.76s"
+          ]
+        },
+        {
+          "name": "postgres",
+          "conclusion": "success",
+          "id": 121758951434,
+          "summaries": [
+            "89 passed in 11.23s"
+          ]
+        }
+      ]
+    }
+  ]
+}

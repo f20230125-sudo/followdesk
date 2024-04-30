@@ -7,6 +7,38 @@ on:
 permissions:
   contents: read
 jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: followdesk
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: followdesk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/loopdesk
+          ref: main
+          path: loopdesk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/scopedesk
+          ref: main
+          path: scopedesk
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m venv .audit
+      - run: .audit/bin/python -m pip install pip-audit==2.10.1
+      - run: .audit/bin/python scripts/prepare-dependency-audit.py
+      - run: .audit/bin/python -m pip_audit -r .local/dependency-audit/requirements.txt --strict --progress-spinner off --format json --output artifacts/dependency-audit.json
+      - name: Record dependency audit JSON
+        if: always()
+        run: .audit/bin/python -c "from pathlib import Path; p=Path('artifacts/dependency-audit.json'); print(p.read_text() if p.exists() else 'No audit JSON was produced')"
   sqlite:
     runs-on: ubuntu-latest
     defaults:

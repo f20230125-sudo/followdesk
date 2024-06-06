@@ -35,7 +35,8 @@ jobs:
       - run: python -m venv .audit
       - run: .audit/bin/python -m pip install pip-audit==2.10.1
       - run: .audit/bin/python scripts/prepare-dependency-audit.py
-      - run: .audit/bin/python -m pip_audit -r .local/dependency-audit/requirements.txt --strict --progress-spinner off --format json --output artifacts/dependency-audit.json
+      - run: .audit/bin/python -m pip_audit -r .local/dependency-audit/requirements.txt --disable-pip --no-deps --strict --progress-spinner off --format json --output artifacts/dependency-audit.json
+      - run: .audit/bin/python scripts/prepare-dependency-audit.py --verify
       - name: Record dependency audit JSON
         if: always()
         run: .audit/bin/python -c "from pathlib import Path; p=Path('artifacts/dependency-audit.json'); print(p.read_text() if p.exists() else 'No audit JSON was produced')"

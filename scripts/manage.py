@@ -45,7 +45,7 @@ def main():
             env.pop("FOLLOWDESK_TEST_DATABASE_URL", None)
         backend = "postgres" if args.command == "test-postgres" else "sqlite"
         temp = ROOT / ".local" / ("pytest-" + uuid.uuid4().hex)
-        return run([python,"-m","pytest","-q",f"--basetemp={temp}",f"--junitxml=artifacts/pytest-{backend}.xml"], env)
+        return run([python,"-m","pytest","-q","-o","cache_dir=.local/pytest-cache",f"--basetemp={temp}",f"--junitxml=artifacts/pytest-{backend}.xml"], env)
     if args.command in {"browser", "record"}:
         return run(["node", "scripts/" + ("browser-check.mjs" if args.command == "browser" else "record-demo.mjs")], env)
     return run([python,"scripts/package-release.py"], env)

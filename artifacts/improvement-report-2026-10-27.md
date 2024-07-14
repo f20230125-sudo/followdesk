@@ -1,0 +1,50 @@
+# FollowDesk improvement report — 27 October 2026
+
+All five priority items are implemented in this working copy. Nothing was pushed or deployed; no provider setting or Neon resource was accessed. Delivery remains simulated. No runtime dependency, table or migration was added, and `contract.py` and existing migrations were not edited. README Hosting status text was left intact as requested.
+
+## Changes and files
+
+1. **Work queue guidance:** `followdesk/services.py`, `followdesk/__init__.py`, `followdesk/templates/queue.html`, new `followdesk/templates/demo_path.html`, `public/assets/app.css`. The server computes six workspace milestones from the existing connection, enrolments, `draft_saved` audit records, receipts and outcome/CRM events. Each step says Done / Next / Later; the next unfinished step has the only primary checklist control. Connection instructions link to LoopDesk in a new tab with `rel="noopener"`; pairing codes stay out of URLs. Empty-queue copy names the next step. All-complete guidance becomes a closed native disclosure. A generated enrolment draft alone does not count as an explicit saved draft. Sync requires at least one event and every event synced; partial sync stays unfinished.
+2. **Connection and pairing:** `followdesk/crm.py`, `followdesk/__init__.py`, `followdesk/templates/connection.html`. A prominent status shows Not connected, Connected until a Dubai timestamp, Expired or Revoked. A read-only call to the existing opportunities API detects remote revocation without changing the REST contract. Typed authentication rejection distinguishes revocation from an outage. During an outage the page explicitly labels the expiry as saved/unverified and the checklist keeps connection as the next step. Successful pairing redirects to New follow-up with confirmation. One-use exchange, encryption, expiry, issuer identity and revocation remain in the existing services.
+3. **Plan previews:** `followdesk/services.py`, `followdesk/__init__.py`, `followdesk/templates/plans.html`, `public/assets/app.css`. Each of the five editor slots has a server-rendered Preview with sample contact button. It previews current unsaved text through the same `render_text` used at enrolment, with clearly fictional values for every supported placeholder and literal dollars. Input and rendered output retain the existing byte limits. Unknown/malformed placeholders are rejected; `{{7*7}}` and HTML remain inert, escaped text. The selected plan is workspace-scoped and the slot is bounded to 0–4. Preview preserves all fields and inclusion choices, publishes nothing and leaves the published plan heading unchanged. The preview POST retains CSRF/origin checks.
+4. **Small populated-page fixes:** `followdesk/templates/reports.html`, `inbox.html`, `run.html`, `queue.html`, `landing.html`, `public/assets/app.css`. Reports names delivery/outcome history, counts its event records and explains sideways table scrolling with an accessible description and keyboard instructions. Demo inbox counts receipts and explains opening one to read exact text or record a synthetic reply. Run distinguishes exact saved-message confirmation from the need to save/review/confirm; it counts history events and exposes stable anchors for checklist actions. Existing outcome/pause inputs now also expose their 1,024-character browser limits. Queue and landing headlines describe their actual purpose. Singular/plural labels and mobile checklist-count wrapping were corrected after screenshot review.
+5. **Metadata and errors:** `followdesk/templates/base.html`, `landing.html`, `error.html`, `followdesk/__init__.py`. Every HTML page receives a description, Open Graph title/description, theme colour and a page-specific title. Missing pages return a useful 404 even without a demo session. Error pages describe failure and link to the work queue; unexpected 500 errors have a redacted HTML response, and database 503 responses retain Retry-After.
+
+Supporting changes: new `tests/test_demo_guidance.py`; additional real HTTP pairing/revocation coverage in `tests/test_live_integration.py`; expanded `scripts/browser-check.mjs`; `scripts/manage.py` now keeps pytest's cache in `.local/pytest-cache` (the baseline root cache was inaccessible); updated README and `docs/verification.md` with implemented behaviour and current local results. No frontend build step or external asset was introduced; `public/assets/app.js` required no change.
+
+## Exact verification
+
+Baseline full suite: `89 passed, 1 warning in 10.60s`. The warning was an inaccessible pre-existing root pytest cache; the launcher cache-path change removes it.
+
+Final command: `.venv\Scripts\python scripts\manage.py test`
+
+**Exact final result line:** `134 passed in 14.04s`
+
+`artifacts/pytest-sqlite.xml` records 134 tests, zero failures, zero errors and zero skips. This adds 45 cases, including parameterised boundaries. Coverage includes checklist progression and isolation; generated versus saved drafts; empty/partial/complete sync; expiry at the exact boundary; actual issuer revocation and one-use replay; every placeholder and editor slot; unknown/malformed/hostile text; UTF-8 byte limits and rendered expansion; CSRF/origin rejection; foreign plan denial; page metadata; anonymous 404 and redacted 500/503 responses. No existing test was removed.
+
+Final browser command: `.venv\Scripts\python scripts\manage.py browser`, with these local environment overrides:
+
+```powershell
+$env:FOLLOWDESK_URL='http://127.0.0.1:15059'
+$env:LOOPDESK_URL='http://127.0.0.1:15055'
+$env:SCOPEDESK_URL='http://127.0.0.1:15058'
+```
+
+**Browser result: 96 checks passed; 32 axe scans; zero automated violations; zero browser exceptions; zero server failures.** Chromium 156.0.8078.4. Result: [2026-10-27-after-browser-verification.json](2026-10-27-after-browser-verification.json), verified at 2026-10-27T01:40:40.596Z. Business responses came from actual local ScopeDesk, LoopDesk and FollowDesk services/databases. Delivery used the explicitly simulated inbox. A separate JavaScript-disabled browser context completed pairing, enrolment, saving, exact-message confirmation, delivery, synthetic reply, history sync and plan preview. The original browser journey had 44 checks; added captures contribute overflow checks as well as new behaviour checks.
+
+New before/after screenshots are `artifacts/2026-10-27-before-*.png` (27 files) and `artifacts/2026-10-27-after-*.png` (34 files), including separate print artifacts. Every non-print image was checked for exact 1440×900 or 390×844 dimensions. The affected HTML pages—landing, queue, connection, enrolment, plans, run, saved-message review, inbox, receipt, and error—have before/after desktop/mobile evidence. Connection's baseline mobile page is named `before-disconnected-mobile`; run's captures are named `review-*`. New preview, completed-checklist and scrolled mobile-table captures show additional states. Original evidence filenames were retained. The baseline capture run passed 59 checks, using the original workflow plus the added baseline captures; its result is `2026-10-27-before-browser-verification.json`.
+
+I inspected the populated Reports, Demo inbox and Run screenshots, then inspected the updated queue, connection, preview, Reports table, inbox, Run and error screenshots. Automated scans and this review do not establish full accessibility conformance or a human usability-study result.
+
+## Environment, deviations and remaining verification
+
+- All newly created files, databases, keys, temporary directories and caches stayed inside this FollowDesk working copy on D:. TEMP/TMP/TMPDIR and PYTHONPYCACHEPREFIX used `.local/` through the launcher. Existing Python/Node/Playwright tools were reused without installing packages.
+- To avoid writing to the sibling projects, disposable `.local/serve-journey.py` runners loaded their existing app factories with SQLite databases and generated keys under FollowDesk's `.local/journey-2026-10-27/`. FollowDesk's final server used `scripts/manage.py run` with local database/port/origin overrides and an ephemeral local session secret. Sibling source was only read/imported as necessary to execute and understand the existing three-app flow; no sibling source, database or key was edited.
+- The initial baseline used ports 5055/5058/5059. During the next attempt, sibling source changed while its server was running, producing a ScopeDesk template/context mismatch, and standard ports became shared with other processes. That attempt stopped early. Only my server sessions were stopped; final isolated servers used 15055/15058/15059. The successful final browser result contains no such failure. All server sessions started by this task were stopped after verification; other processes were left alone.
+- PostgreSQL cannot be run on this PC and was not run. New SQL uses bound, workspace-scoped portable SELECT queries and no schema changes. The lead should run the full PostgreSQL CI job before merging. Prior CI/hosting statements were not rewritten as evidence for these additions.
+- No hosted verification was attempted. The lead should deploy and verify the two-tab flow, metadata, expiry/revocation states and narrow-screen rendering after review.
+- Queue and connection now make a read-only LoopDesk check for a locally unexpired connection. This uses the existing four-second HTTP timeout; the lead should assess hosted latency and API rate-budget impact. During an outage the saved expiry is shown with an explicit warning, and local runs/history remain accessible.
+- Checklist milestones aggregate across the workspace, as requested. If every existing run is stopped before an explicit save/delivery, guidance links to a new follow-up rather than an uneditable message. It is a demo guide, not a new workflow gate.
+- This working copy has no Git metadata, so a Git diff could not be generated here. The file list above and the working-copy comparison are the review surface.
+
+No numbered task remains unimplemented. PostgreSQL CI and hosted verification remain with the lead.

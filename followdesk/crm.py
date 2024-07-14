@@ -13,6 +13,10 @@ class CRMError(ValueError):
     pass
 
 
+class CRMAccessError(CRMError):
+    pass
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):
         return None
@@ -48,7 +52,7 @@ def request_api(path, method="GET", token=None, payload=None):
             return strict_json(response.read(262145),262144)
     except HTTPError as exc:
         if exc.code in (401,403):
-            raise CRMError("LoopDesk access expired or was revoked. Create a fresh pairing code.") from None
+            raise CRMAccessError("LoopDesk access expired or was revoked. Create a fresh pairing code.") from None
         raise CRMError(f"LoopDesk could not accept this request (HTTP {exc.code}). No CRM field was overwritten.") from None
     except (URLError,TimeoutError,OSError,ContractError) as exc:
         raise CRMError("LoopDesk is unavailable or returned an invalid response. Pending work is retained.") from None
@@ -59,6 +63,26 @@ def connection(db,wid):
     if not row or row["status"] != "Connected":
         raise CRMError("Connect this workspace to LoopDesk first.")
     return row
+
+
+def connection_status(db,wid):
+    from . import services as s
+    row=db.one("SELECT source_workspace_id,expires_at,status FROM connections WHERE workspace_id=?",(wid,))
+    result=dict(status="Not connected",expires_at=None,valid=False,warning=None)
+    if not row: return result
+    result["expires_at"]=row["expires_at"]
+    if row["status"]!="Connected": result["status"]="Revoked"
+    elif s.utc_value(row["expires_at"])<=s.now(): result["status"]="Expired"
+    else:
+        result["status"]="Connected"
+        try:
+            call(db,wid,"/opportunities")
+            result["valid"]=True
+        except CRMAccessError:
+            result["status"]="Revoked"
+        except CRMError:
+            result["warning"]="LoopDesk could not be checked. This is the saved grant expiry; retry when LoopDesk is available."
+    return result
 
 
 def pair(db,wid,code):

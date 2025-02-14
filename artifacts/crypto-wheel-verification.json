@@ -1,0 +1,26 @@
+[
+  {
+    "name": "cryptography",
+    "version": "50.0.2",
+    "filename": "cryptography-50.0.2-cp311-abi3-win_amd64.whl",
+    "sha256": "7afa5a6602a9f29af1f3a2965f831bae7c9d5d597b7cbb716d41ab3b7d89879c",
+    "recordedHashesVerified": true,
+    "source": "Pre-existing read-only pip download cache; original wheel copied without modification"
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1",
+    "filename": "cffi-2.1.1-cp314-cp314-win_amd64.whl",
+    "sha256": "3222ba5d678f80a030e6afbcc33dc1ae5cb45facabb61cee2c7016b8432fde48",
+    "recordedHashesVerified": true,
+    "source": "Pre-existing read-only pip download cache; original wheel copied without modification"
+  },
+  {
+    "name": "pycparser",
+    "version": "3.0",
+    "filename": "pycparser-3.0-py3-none-any.whl",
+    "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+    "recordedHashesVerified": true,
+    "source": "Pre-existing read-only pip download cache; original wheel copied without modification"
+  }
+]

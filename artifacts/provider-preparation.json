@@ -18,7 +18,8 @@
         "SECRET_KEY"
       ],
       "deployed": false,
-      "postgresVerified": false
+      "postgresServiceCIVerified": true,
+      "productionDatabaseVerified": false
     },
     {
       "application": "scopedesk",
@@ -34,7 +35,8 @@
         "SCOPEDESK_SECRET_KEY"
       ],
       "deployed": false,
-      "postgresVerified": false
+      "postgresServiceCIVerified": true,
+      "productionDatabaseVerified": false
     },
     {
       "application": "followdesk",
@@ -51,7 +53,8 @@
         "FOLLOWDESK_VAULT_KEY"
       ],
       "deployed": false,
-      "postgresVerified": false
+      "postgresServiceCIVerified": true,
+      "productionDatabaseVerified": false
     }
   ]
 }

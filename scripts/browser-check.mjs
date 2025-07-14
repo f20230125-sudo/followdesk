@@ -9,16 +9,20 @@ const follow=process.env.FOLLOWDESK_URL||'http://127.0.0.1:5059';
 const loop=process.env.LOOPDESK_URL||'http://127.0.0.1:5055';
 const scope=process.env.SCOPEDESK_URL||'http://127.0.0.1:5058';
 const root=path.resolve('artifacts');await fs.mkdir(root,{recursive:true});
+const prefix=process.env.FOLLOWDESK_EVIDENCE_PREFIX||'2026-10-27-after-';
+const evidence=name=>path.join(root,prefix+name);
 const browser=await chromium.launch({headless:true});
-const ctx=await browser.newContext({viewport:{width:1440,height:1000}});
+const ctx=await browser.newContext({viewport:{width:1440,height:900}});
 ctx.setDefaultTimeout(12000);
 const p=await ctx.newPage();
 const checks=[],scans=[],errors=[],serverErrors=[];
 p.on('pageerror',e=>errors.push(e.message));
 p.on('response',r=>{if(r.status()>=500)serverErrors.push({url:r.url(),status:r.status()});});
 function check(name,value=true){assert.ok(value,name);checks.push(name);}
-async function capture(name,width=1440,height=1000){await p.setViewportSize({width,height});check(name+': no page overflow',await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await p.screenshot({path:path.join(root,name+'.png'),fullPage:true});}
-async function audit(name){const result=await new AxeBuilder({page:p}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();const violations=result.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))}));await fs.writeFile(path.join(root,name+'-axe.json'),JSON.stringify(violations,null,2));assert.deepEqual(violations,[],name+' accessibility');scans.push(name);}
+async function capture(name,width=1440,height=900,target=null){await p.setViewportSize({width,height});await p.waitForFunction(()=>getComputedStyle(document.body).fontFamily.includes('system-ui'));await p.evaluate(()=>document.fonts.ready);if(target)await target.scrollIntoViewIfNeeded();else await p.evaluate(()=>scrollTo(0,0));check(name+': no page overflow',await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await p.screenshot({path:evidence(name+'.png'),fullPage:false});}
+async function audit(name){const result=await new AxeBuilder({page:p}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();const violations=result.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))}));await fs.writeFile(evidence(name+'-axe.json'),JSON.stringify(violations,null,2));assert.deepEqual(violations,[],name+' accessibility');scans.push(name);}
+async function nextStep(label){const next=p.locator('.demo-checklist [aria-current="step"]');check('Next demo step: '+label,(await next.locator('strong').innerText())===label&&await p.locator('.demo-checklist .button').count()===1);}
+async function queueStep(label){await p.goto(follow+'/queue');await nextStep(label);}
 try{
   const started=Date.now();
   await p.goto(scope);await p.getByRole('button',{name:'Open demo workspace'}).click();
@@ -31,7 +35,7 @@ try{
   await p.getByRole('button',{name:'Save scope & recalculate'}).click();
   await p.getByRole('button',{name:'Review & create revision'}).click();
   const [download]=await Promise.all([p.waitForEvent('download'),p.getByRole('link',{name:'Download reviewed JSON'}).click()]);
-  const handoff=path.join(root,'worked-scope-reviewed.json');await download.saveAs(handoff);
+  const handoff=evidence('worked-scope-reviewed.json');await download.saveAs(handoff);
   await p.goto(loop);await p.getByRole('button',{name:'Try demo'}).click();
   await p.goto(loop+'/scope-import');
   await p.getByLabel('Reviewed ScopeDesk JSON').setInputFiles(handoff);
@@ -46,20 +50,29 @@ try{
   const code=await p.locator('#pair-code').inputValue();
   check('One-use code issued',code.length>=32);
   // Code deliberately stays in memory, absent from screenshots and reports.
-  await p.goto(follow);await capture('landing-desktop');await audit('landing-desktop');
+  await p.goto(follow);await capture('landing-mobile',390,844);await audit('landing-mobile');await capture('landing-desktop');await audit('landing-desktop');
   await p.keyboard.press('Tab');check('Keyboard skip link receives focus',await p.getByRole('link',{name:'Skip to content'}).evaluate(e=>e===document.activeElement));
   await p.getByRole('button',{name:'Open a private demo'}).click();
-  await p.goto(follow+'/connection');await p.getByLabel('One-use pairing code').fill(code);
+  await nextStep('Connect LoopDesk');
+  const loopLink=p.getByRole('link',{name:"LoopDesk's Outreach connection",exact:true});
+  check('Pairing instructions preserve the two-tab flow',await loopLink.getAttribute('target')==='_blank'&&await loopLink.getAttribute('rel')==='noopener');
+  await capture('empty-queue-desktop');await audit('empty-queue-desktop');await capture('empty-queue-mobile',390,844);await audit('empty-queue-mobile');
+  await p.locator('.demo-checklist .button').click();await capture('disconnected-desktop');await audit('disconnected-desktop');await capture('disconnected-mobile',390,844);await audit('disconnected-mobile');
+  await p.getByLabel('One-use pairing code').fill(code);
   await p.getByRole('button',{name:'Connect workspace',exact:true}).click();
-  check('Live connection established',(await p.locator('main').innerText()).includes('Connected to this LoopDesk demo'));
-  await capture('connection-desktop');await audit('connection-desktop');
-  await p.goto(follow+'/enroll');
+  check('Pairing redirects to New follow-up with confirmation',p.url()===follow+'/enroll'&&(await p.locator('main').innerText()).includes('Connected to this LoopDesk demo'));
+  check('Pairing code is absent from URLs',!p.url().includes(code));
+  await capture('enroll-desktop');await audit('enroll-desktop');await capture('enroll-mobile',390,844);await audit('enroll-mobile');
+  await p.goto(follow+'/connection');check('Connection shows verified expiry in Dubai',/Connected until .+ Dubai/.test(await p.locator('.connection-status').innerText()));
+  await capture('connection-desktop');await audit('connection-desktop');await capture('connection-mobile',390,844);await audit('connection-mobile');
+  await queueStep('Start a follow-up from an existing enquiry');await p.locator('.demo-checklist .button').click();
   await p.getByLabel('LoopDesk opportunity').selectOption(oid);
   await p.getByLabel('Published plan version').selectOption({label:'Reviewed scope next discussion · v1'});
   await p.getByRole('button',{name:'Create run & inspect draft'}).click();
   const runUrl=p.url();
   check('Run created without delivery',runUrl.includes('/runs/')&&await p.getByRole('button',{name:'Deliver to demo inbox'}).isDisabled());
   check('Imported scope origin and assumption status visible',(await p.locator('main').innerText()).includes('Revision 1'));
+  await queueStep('Review and save the first message');await p.locator('.demo-checklist .button').click();
   const subject=p.getByLabel('Subject',{exact:true});
   const body=p.getByLabel('Message · plain text, maximum 4 KiB');
   await subject.fill('Fictional scope discussion');
@@ -67,14 +80,15 @@ try{
   await p.getByRole('button',{name:'Save draft & clear approval'}).click();
   check('Native multiline form saves the actual draft',await subject.inputValue()==='Fictional scope discussion'&&await p.locator('.alert.error').count()===0);
   check('User text stays inert plain text',(await body.inputValue()).includes('{{7*7}}'));
+  await queueStep('Deliver it to the demo inbox');await p.locator('.demo-checklist .button').click();
   await capture('review-desktop');await audit('review-desktop');
   await capture('review-mobile',390,844);await audit('review-mobile');
   check('All mobile navigation links fit without hidden horizontal scrolling',await p.locator('nav a').evaluateAll(links=>links.length===6&&links.every(a=>{const r=a.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;})));
   check('Mobile workspace reset remains reachable',await p.getByRole('button',{name:'Start fresh demo'}).isVisible());
-  await p.setViewportSize({width:1440,height:1000});
+  await p.setViewportSize({width:1440,height:900});
   await p.getByRole('link',{name:'Review saved draft',exact:true}).click();
   check('Read-only review displays exact saved content',(await p.locator('.message-text').innerText()).includes('<script>'));
-  await capture('confirm-message-desktop');await audit('confirm-message-desktop');
+  await capture('confirm-message-desktop');await audit('confirm-message-desktop');await capture('confirm-message-mobile',390,844);await audit('confirm-message-mobile');
   await p.getByRole('button',{name:'Confirm exact saved message'}).click();
   check('Saved draft approval enables explicit demo delivery',await p.getByRole('button',{name:'Deliver to demo inbox'}).isEnabled());
   const deliveryForm=p.getByRole('button',{name:'Deliver to demo inbox'}).locator('..');
@@ -88,16 +102,30 @@ try{
   const repeated=await p.request.post(follow+action,{form:{csrf_token:csrf,version,action:'deliver'},maxRedirects:0});
   check('Repeated delivery returns same immutable receipt',repeated.status()===303&&new URL(repeated.headers().location,follow).href===receiptUrl);
   await capture('receipt-desktop');await audit('receipt-desktop');
+  await capture('receipt-mobile',390,844);await audit('receipt-mobile');
+  await queueStep('Record a reply or outcome');await p.locator('.demo-checklist .button').click();
+  await p.goto(follow+'/inbox');check('Inbox displays its real receipt count',(await p.locator('h1').innerText())==='Demo inbox · 1 receipt');
+  await capture('inbox-desktop');await audit('inbox-desktop');await capture('inbox-mobile',390,844);await audit('inbox-mobile');await p.goto(receiptUrl);
   await p.getByRole('button',{name:'Record synthetic reply & stop future steps'}).click();
   check('Synthetic reply stops remaining steps',(await p.locator('main').innerText()).includes('Stopped · synthetic reply')&&(await p.locator('.steps').innerText()).includes('Cancelled'));
   await capture('stopped-run-desktop');await audit('stopped-run-desktop');
+  await capture('stopped-run-mobile',390,844);await audit('stopped-run-mobile');
+  await queueStep('Sync history to LoopDesk');
   await p.goto(follow+'/plans');
   const planCard=p.locator('section.card').filter({has:p.getByRole('heading',{name:'Reviewed scope next discussion',exact:true})});
   await planCard.getByText('Inspect steps or publish a new version',{exact:true}).click();
+  await planCard.getByLabel('Message subject · leave blank for a task').first().fill('Hello ${contact_name}');
+  await planCard.getByLabel('Message or task instructions · maximum 4 KiB').first().fill('${client_name}: ${opportunity_title}; revision ${received_scope_revision}; ${next_action}. $$ <script>alert(1)</script> {{7*7}}');
+  await planCard.getByRole('button',{name:'Preview with sample contact'}).first().click();
+  const sample=p.locator('.sample-preview');
+  check('Preview renders every supported placeholder with fictional values',(await sample.innerText()).includes('Alex Example (fictional)')&&(await sample.innerText()).includes('Fictional Cedar Recycling: Fictional laptop collection enquiry; revision 2; Discuss the fictional collection scope. $ <script>alert(1)</script> {{7*7}}')&&await sample.locator('script').count()===0);
+  check('Preview does not publish a plan',await p.getByText('Published v2',{exact:true}).count()===0);
+  await capture('plans-preview-desktop',1440,900,sample);await audit('plans-preview-desktop');await capture('plans-preview-mobile',390,844,sample);await audit('plans-preview-mobile');
   await planCard.getByLabel('Step title',{exact:true}).first().fill('New title for future runs only');
   await planCard.getByRole('button',{name:'Publish new version'}).click();
   check('Structured plan form publishes a new version',(await p.locator('main').innerText()).includes('Published v2'));
   await capture('plans-desktop');await audit('plans-desktop');
+  await capture('plans-mobile',390,844);await audit('plans-mobile');
   await p.goto(runUrl);
   check('Existing run retains its pinned original plan',!(await p.locator('.steps').innerText()).includes('New title for future runs only'));
   await p.goto(follow+'/reports');
@@ -109,11 +137,16 @@ try{
   check('Repeated CRM sync has no pending effects',(await p.locator('.metrics strong').allTextContents())[3]==='0');
   await capture('reports-desktop');await audit('reports-desktop');
   await capture('reports-mobile',390,844);await audit('reports-mobile');
-  await p.emulateMedia({media:'print'});check('Print hides navigation',await p.locator('.sidebar').evaluate(e=>getComputedStyle(e).display==='none'));await p.screenshot({path:path.join(root,'reports-print.png'),fullPage:true});await p.emulateMedia({media:'screen'});
-  await p.setViewportSize({width:1440,height:1000});
+  await capture('reports-events-mobile',390,844,p.locator('.table-wrap'));check('Mobile event table explains sideways scrolling',await p.locator('.table-wrap').getAttribute('aria-describedby')==='events-scroll-hint');
+  await p.emulateMedia({media:'print'});check('Print hides navigation',await p.locator('.sidebar').evaluate(e=>getComputedStyle(e).display==='none'));await p.screenshot({path:evidence('reports-print.png'),fullPage:true});await p.emulateMedia({media:'screen'});
+  await p.setViewportSize({width:1440,height:900});
   const [csv]=await Promise.all([p.waitForEvent('download'),p.getByRole('link',{name:'Export event CSV'}).click()]);
-  const csvPath=path.join(root,'events-export.csv');await csv.saveAs(csvPath);
+  const csvPath=evidence('events-export.csv');await csv.saveAs(csvPath);
   check('CSV retains outcome origin and timestamps',(await fs.readFile(csvPath,'utf8')).includes('Synthetic inbox action'));
+  await p.goto(follow+'/queue');
+  check('Completed demo checklist collapses without losing steps',await p.locator('details.demo-path:not([open])').count()===1&&await p.locator('.path-done').count()===6);
+  await capture('complete-queue-desktop');await audit('complete-queue-desktop');await capture('complete-queue-mobile',390,844);await audit('complete-queue-mobile');
+  await p.locator('details.demo-path summary').click();check('Completed checklist expands with native disclosure',await p.locator('details.demo-path[open]').count()===1);
   await p.goto(loop+'/opportunities/'+oid);
   const history=await p.locator('main').innerText();
   check('LoopDesk shows exactly two outreach history entries',(history.match(/FollowDesk · /g)||[]).length===2);
@@ -123,10 +156,34 @@ try{
   const other=await browser.newContext();const op=await other.newPage();await op.goto(follow);await op.getByRole('button',{name:'Open a private demo'}).click();
   check('Foreign workspace denied access to run',(await op.goto(runUrl)).status()===404);
   check('Foreign workspace denied receipt',(await op.goto(receiptUrl)).status()===404);await other.close();
+  await p.goto(follow+'/missing-page');check('404 explains what happened and offers work queue',await p.getByRole('heading',{name:'Page not found.'}).count()===1&&await p.getByRole('link',{name:'Return to work queue'}).getAttribute('href')==='/queue');
+  await capture('error-desktop');await audit('error-desktop');await capture('error-mobile',390,844);await audit('error-mobile');
+  const titles=[];
+  for(const route of ['','/queue','/connection','/enroll','/plans','/reports','/inbox','/missing-page']){
+    await p.goto(follow+route);titles.push(await p.title());
+    check('Metadata present: '+(route||'/'),await p.locator('meta[name=description]').getAttribute('content')&&await p.locator('meta[property="og:title"]').getAttribute('content')&&await p.locator('meta[property="og:description"]').getAttribute('content')&&await p.locator('meta[name=theme-color]').getAttribute('content')==='#12665b');
+  }
+  check('Page titles distinguish destinations',new Set(titles).size===titles.length);
+  await p.goto(loop+'/integrations/followdesk');await p.getByRole('button',{name:'Create pairing code'}).click();
+  const nojsCode=await p.locator('#pair-code').inputValue();
+  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}});
+  try{
+    const n=await nojs.newPage();await n.goto(follow);await n.getByRole('button',{name:'Open a private demo'}).click();
+    check('Checklist is usable without JavaScript',await n.locator('.demo-checklist .button').innerText()==='Connect LoopDesk');
+    await n.locator('.demo-checklist .button').click();await n.getByLabel('One-use pairing code').fill(nojsCode);await n.getByRole('button',{name:'Connect workspace',exact:true}).click();
+    check('Pairing redirects without JavaScript',n.url()===follow+'/enroll');
+    await n.getByLabel('LoopDesk opportunity').selectOption(oid);await n.getByRole('button',{name:'Create run & inspect draft'}).click();
+    await n.getByRole('button',{name:'Save draft & clear approval'}).click();await n.getByRole('link',{name:'Review saved draft',exact:true}).click();await n.getByRole('button',{name:'Confirm exact saved message'}).click();await n.getByRole('button',{name:'Deliver to demo inbox'}).click();await n.getByRole('button',{name:'Record synthetic reply & stop future steps'}).click();
+    await n.goto(follow+'/reports');await n.getByRole('button',{name:'Retry pending CRM history'}).click();await n.goto(follow+'/queue');
+    check('Full FollowDesk demo completes without JavaScript',await n.locator('details.demo-path:not([open])').count()===1);
+    await n.goto(follow+'/plans');await n.locator('section.card').first().locator('summary').click();await n.getByRole('button',{name:'Preview with sample contact'}).first().click();
+    check('Plan preview works without JavaScript',await n.locator('.sample-preview').count()===1&&(await n.locator('.sample-preview').innerText()).includes('fictional'));
+  }finally{await nojs.close();}
   await p.goto(loop+'/integrations/followdesk');await p.getByRole('button',{name:'Revoke all FollowDesk access'}).click();
+  await p.goto(follow+'/connection');check('Direct connection view detects remote revocation',(await p.locator('.connection-status').innerText()).includes('Revoked'));
   await p.goto(follow+'/enroll');check('Revoked live grant blocks new enrolment',(await p.locator('main').innerText()).includes('expired or was revoked'));
-  await p.goto(follow+'/queue');await capture('queue-desktop');await audit('queue-desktop');await capture('queue-mobile',390,844);await audit('queue-mobile');
+  await p.goto(follow+'/queue');await nextStep('Connect LoopDesk');await capture('queue-desktop');await audit('queue-desktop');await capture('queue-mobile',390,844);await audit('queue-mobile');
   check('No browser exceptions',errors.length===0);check('No server failures',serverErrors.length===0);
   const result={verifiedAt:new Date().toISOString(),backend:'SQLite',browser:browser.version(),businessResponses:'Real ScopeDesk, LoopDesk and FollowDesk services/databases; no mocked business responses. Delivery is the explicitly simulated built-in inbox.',checks,checkCount:checks.length,accessibilityScans:scans,automatedViolations:0,errors,serverErrors,automatedJourneySeconds:Math.round((Date.now()-started)/1000),humanTiming:'Not measured',postgres:'not run',hosted:'not run'};
-  await fs.writeFile(path.join(root,'browser-verification.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
+  await fs.writeFile(evidence('browser-verification.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 }finally{await ctx.close();await browser.close();}

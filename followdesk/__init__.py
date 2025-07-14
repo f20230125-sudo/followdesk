@@ -15,7 +15,7 @@ from werkzeug.exceptions import HTTPException,SecurityError
 from itsdangerous import URLSafeTimedSerializer,BadSignature,SignatureExpired
 
 from . import services as s,security,crm
-from .contract import ContractError,strict_json,canonical
+from .contract import ContractError,strict_json,canonical,identifier
 from .db import get_db,migrate
 
 
@@ -51,7 +51,6 @@ def create_app(config=None):
             with key_path.open("x",encoding="utf-8") as stream: stream.write(secrets.token_hex(32))
         except FileExistsError: pass
         vault_key=key_path.read_text().strip()
-        import re
         if not re.fullmatch(r"[a-f0-9]{64}",vault_key): raise RuntimeError("Local vault key is invalid.")
         app.config["LOCAL_VAULT_KEY"]=vault_key
     with app.app_context(): crm.base_url()
@@ -74,6 +73,7 @@ def create_app(config=None):
         if request.endpoint not in {"landing","demo","static","health"}:
             workspace=security.active_workspace(get_db(),session.get("workspace_id"),s.stamp())
             if not workspace:
+                if request.routing_exception: return None
                 session.pop("workspace_id",None)
                 flash("Start a fresh demo. Workspaces expire after 24 hours.","info")
                 return redirect(url_for("landing"),303)
@@ -133,7 +133,8 @@ def create_app(config=None):
         for row in rows:
             row["context"]=json.loads(row["context"])
             row["step"]=s.current_step(get_db(),g.wid,row["id"])
-        return render_template("queue.html",runs=rows,metrics=s.report(get_db(),g.wid),connection=get_db().one("SELECT source_workspace_id,expires_at,status FROM connections WHERE workspace_id=?",(g.wid,)))
+        connection=crm.connection_status(get_db(),g.wid)
+        return render_template("queue.html",runs=rows,metrics=s.report(get_db(),g.wid),connection=connection,progress=s.demo_progress(get_db(),g.wid,connection["valid"]))
 
     @app.route("/connection",methods=["GET","POST"])
     def connection():
@@ -144,8 +145,9 @@ def create_app(config=None):
             else:
                 crm.pair(get_db(),g.wid,request.form.get("pairing_code",""))
                 flash("Connected to this LoopDesk demo with read and append-only access.","success")
+                return redirect(url_for("enroll"),303)
             return redirect(url_for("connection"),303)
-        return render_template("connection.html",connection=get_db().one("SELECT source_workspace_id,expires_at,status FROM connections WHERE workspace_id=?",(g.wid,)))
+        return render_template("connection.html",connection=crm.connection_status(get_db(),g.wid))
 
     @app.route("/enroll",methods=["GET","POST"])
     def enroll():
@@ -245,7 +247,19 @@ def create_app(config=None):
 
     @app.route("/plans",methods=["GET","POST"])
     def plans():
-        if request.method=="POST":
+        editor=None
+        preview=None
+        preview_error=None
+        preview_index=None
+        if request.method=="POST" and "preview" in request.form:
+            editor=s.record(get_db(),"plan_versions",g.wid,identifier(request.form.get("plan_id","")))
+            raw_index=request.form.get("preview","")
+            if not re.fullmatch(r"[0-4]",raw_index): raise s.ValidationError("Choose a step from 1 to 5 to preview.")
+            preview_index=int(raw_index)
+            try:
+                preview=s.preview_message(request.form.get(f"kind_{preview_index}",""),request.form.get(f"subject_{preview_index}",""),request.form.get(f"body_{preview_index}",""))
+            except ContractError as exc: preview_error=str(exc)
+        elif request.method=="POST":
             steps=[]
             for index in range(5):
                 if request.form.get(f"include_{index}")!="1": continue
@@ -259,7 +273,10 @@ def create_app(config=None):
         for row in rows:
             row["editable_steps"]=json.loads(row["steps"])
             row["editable_steps"] += [None]*(5-len(row["editable_steps"]))
-        return render_template("plans.html",plans=rows)
+            if editor and row["id"]==editor["id"]:
+                row["editor_name"]=request.form.get("name","")
+                row["editable_steps"]=[dict(kind=request.form.get(f"kind_{i}",""),title=request.form.get(f"title_{i}",""),delay_hours=request.form.get(f"delay_{i}",""),subject=request.form.get(f"subject_{i}",""),body=request.form.get(f"body_{i}",""),included=request.form.get(f"include_{i}")=="1") for i in range(5)]
+        return render_template("plans.html",plans=rows,editor_id=editor["id"] if editor else None,preview=preview,preview_error=preview_error,preview_index=preview_index),422 if preview_error else 200
 
     @app.get("/reports")
     def reports(): return render_template("reports.html",metrics=s.report(get_db(),g.wid),events=get_db().all("SELECT * FROM events WHERE workspace_id=? ORDER BY created_at DESC,sequence DESC,id",(g.wid,)))
@@ -289,4 +306,8 @@ def create_app(config=None):
         app.logger.warning("Workspace database unavailable (%s)",type(error).__name__)
         return render_template("error.html",code=503,message="The database is temporarily unavailable. Please try again shortly."),503,{"Retry-After":"30"}
     for kind in (sqlite3.OperationalError,psycopg.OperationalError,psycopg.errors.UndefinedTable): app.register_error_handler(kind,unavailable)
+
+    @app.errorhandler(500)
+    def unexpected(error):
+        return render_template("error.html",code=500,message="An unexpected error prevented this page from loading. Return to the work queue and try again."),500
     return app

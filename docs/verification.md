@@ -1,6 +1,25 @@
+## Hosted verification, 27 October 2026
+
+Run against all three public origins (<https://followdesk-phi.vercel.app>, <https://loopdesk-sigma.vercel.app>, <https://scopedesk-chi.vercel.app>; Vercel Hobby plus one Neon PostgreSQL database each, all free plans). Migrations were applied before the deployments. `scripts/live-smoke.py` passed **15/15** checks. The three-app browser journey (`scripts/browser-check.mjs` with `FOLLOWDESK_URL`, `LOOPDESK_URL` and `SCOPEDESK_URL` set to the hosted origins) passed **96 checks** with **32 axe scans reporting no automated violations** and no page errors or HTTP 5xx responses: ScopeDesk review and download, LoopDesk import, one-use pairing, the guided checklist, plan preview and publication, message review and delivery, reply recording, CRM sync, remote revocation, and the JavaScript-disabled flow.
+
+Load time with the cross-app call: after pairing, the queue page took a median of 0.61 s (six loads, 0.53–0.73 s) against 0.42 s before pairing, so the LoopDesk status call costs about 0.2 s; the connection and plans pages had medians of 0.55 s and 0.45 s. All responses were HTTP 200. These are page loads from one PC in Dubai through Chromium, not a load test.
+
+Record: `artifacts/hosted-verification-2026-10-27.json` (the journey script prints a fixed "hosted: not run" string left over from the local runs; the JSON file supersedes it). Not verified: that the Vercel client-address header changes the rate-limit key in production, behaviour under real traffic, and any assistive-technology review.
+
 # Local preparation verification — 26 October 2026
 
-Current executable evidence is in `artifacts/pytest-sqlite.xml` and `artifacts/browser-verification.json`; these files record the actual check counts, timestamps and results. This report distinguishes implementation from release verification.
+Current executable evidence is in `artifacts/pytest-sqlite.xml` and `artifacts/2026-10-27-after-browser-verification.json`; these files record the actual check counts, timestamps and results. The original `artifacts/browser-verification.json` is retained as historical evidence. This report distinguishes implementation from release verification.
+
+## Improvements verified locally on 27 October 2026
+
+- Full SQLite suite: `135 passed`, compared with 89 before this work (the last added test covers client-address handling behind Vercel). No tests were removed. Added coverage includes all checklist states and workspace isolation; saved versus generated drafts; partial/complete sync; exact grant-expiry boundaries, remote revocation and outage; every placeholder; all five preview slots; UTF-8 byte limits; malformed/hostile inputs; preview CSRF/origin checks and foreign plan denial; metadata, 404 navigation and redacted 500/503 responses.
+- Real three-app browser journey: 96 checks passed, 32 axe scans, zero automated violations, no browser exceptions or server failures. The original journey contained 44 checks; additional screenshots also contribute explicit overflow checks. The separate before capture run passed 59 checks because it added baseline screenshots to the original workflow.
+- The browser verifies each next-step action, two-tab instructions, post-pairing redirect, Dubai expiry, previews before publication, pinned existing runs, completed native disclosure, receipt counts, metadata and remote revocation. A separate JavaScript-disabled browser context completes the FollowDesk flow through CRM sync and previews a plan.
+- Before/after evidence uses new `2026-10-27-before-*` / `2026-10-27-after-*` filenames. Normal screenshots are viewport captures at 1440×900 and 390×844; the print artifact is separate. All pages affected by shared metadata have both baseline and updated desktop/mobile captures. Preview and mobile event-table captures scroll to the relevant content.
+- Final services used isolated SQLite databases under FollowDesk's `.local/journey-2026-10-27/` and local ports 15055 / 15058 / 15059. The standard ports became shared with other processes; those processes were left running. Sibling source was used only to execute and understand the existing journey. No sibling source, database or key was edited by this work. FollowDesk was started with `scripts/manage.py run`; small disposable runners loaded the sibling app factories with storage inside FollowDesk. All servers started for this work were stopped.
+- No new dependency, table or migration. No provider settings, Neon access, push or deployment in the local work; the hosted run above covers these additions on PostgreSQL, and the pull request's PostgreSQL CI job runs the suite. The CI figures below (89 checks) are historical.
+
+The checklist aggregates milestones across this private workspace. A generated enrolment draft does not count as a saved draft; an explicit `draft_saved` audit record does. Sync is complete only when at least one event exists and every event is synced. Live connection checks are read-only; an outage shows the saved expiry with a warning and keeps connection as the next step. They use the existing four-second CRM request timeout.
 
 ## Local SQLite
 
@@ -17,13 +36,19 @@ Issues found during implementation were corrected before proceeding: accent cont
 
 ScopeDesk retains its 92-test security baseline. LoopDesk retains its original behaviours and extends its suite with the additive outreach API, grant and idempotency/concurrency checks. The exact migration assertion now includes `005_followdesk`; no older migration or behavioural regression check was removed. Both original browser workflows were run again locally. The dedicated existing security report remains in `../../security-review/README.md`.
 
+## Dependency advisories
+
+The [successful audit run](https://github.com/f20230125-sudo/followdesk/actions/runs/40379579882) used pip-audit 2.10.1 against the PyPI advisory service. It checked every exact version in all three runtime and test dependency locks, including Windows-only/conditional pins: 20 packages, zero known vulnerabilities reported. The first result omitted `packaging`; it was rejected by the new coverage verifier. Auditing the complete explicit pin set and requiring an exact package/version match closed that gap. No advisory was ignored and no vulnerability exit code was suppressed.
+
+`artifacts/dependency-audit.json` records the package findings; `dependency-audit-verification.json` records scope, timestamp and workflow evidence. This is a known-advisory check, not malicious-package detection or a guarantee of application security. Shared browser tools, GitHub Actions and the deployed system have separate security boundaries.
+
 ## PostgreSQL / hosting
 
 All three applications now pass both SQLite and PostgreSQL CI jobs on Linux: LoopDesk 121, ScopeDesk 100 and FollowDesk 89 checks per backend. Exact tested commits, run URLs, job IDs and log summaries are in each application's `artifacts/ci-verification.json`. ScopeDesk's initial CI run failed because its direct pytest command did not create the temporary directory; the corrected workflow uses the project launcher and passed both jobs. No test assertions were removed.
 
-Production Fernet dependencies are pinned and installed offline on Windows from previously cached, unmodified wheels after checking their recorded hashes. Tests exercise actual Fernet encryption, tampering/wrong-key rejection, no local fallback, fail-closed production configuration and HTTPS-base cookie/header settings. These tests also pass in the Linux CI jobs. See `artifacts/crypto-wheel-verification.json` and the current JUnit/CI reports. This does not establish real TLS or Vercel execution. Three Vercel projects are linked and their public production configuration is set; source is published on GitHub. Neon is not connected. Edge/proxy behaviour, runtime secrets, production migrations and actual deployed applications remain release gates. No live application availability or production security certification is claimed.
+Production Fernet dependencies are pinned and installed offline on Windows from previously cached, unmodified wheels after checking their recorded hashes. Tests exercise actual Fernet encryption, tampering/wrong-key rejection, no local fallback, fail-closed production configuration and HTTPS-base cookie/header settings. These tests also pass in the Linux CI jobs. See `artifacts/crypto-wheel-verification.json` and the current JUnit/CI reports. The CI jobs do not establish real TLS or Vercel execution; the hosted run on 27 October 2026 (top of this file) does, for the three deployed applications and their Neon databases. No production security certification or availability guarantee is claimed.
 
-The FollowDesk CI jobs include the sibling LoopDesk checkout so integration tests cannot silently disappear. Its passing PostgreSQL job gives both apps separate disposable schemas on a real PostgreSQL service, including the HTTP lost-acknowledgement test. Production Neon connectivity, pooling, TLS and provider limits still require their own checks.
+The FollowDesk CI jobs include the sibling LoopDesk checkout so integration tests cannot silently disappear. Its passing PostgreSQL job gives both apps separate disposable schemas on a real PostgreSQL service, including the HTTP lost-acknowledgement test. Production Neon connectivity, pooling and TLS were exercised by the hosted run; provider limits on the free plans still apply (see `deployment.md`).
 
 ## Reproduction
 

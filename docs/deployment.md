@@ -1,16 +1,21 @@
-# Deployment preparation — 26 October 2026
+# Deployment runbook
 
-Publication is already authorised. Vercel team access now works, and the following new Flask projects have been created, read back and linked in the approved team. These are assigned hostnames, **not live applications**.
+Hosted since 27 October 2026 at <https://followdesk-phi.vercel.app>.
 
-| App | Verified project ID | Assigned production hostname |
-| --- | --- | --- |
-| LoopDesk | `prj_PBu1fIAONvCoQBLbLptQDntykAUp` | `loopdesk-sigma.vercel.app` |
-| ScopeDesk | `prj_3ZZAml6EwIlwO9DAZTPkS7ip1XjX` | `scopedesk-chi.vercel.app` |
-| FollowDesk | `prj_RWkG4vd3qu37euRqOmJ6JToV6m58` | `followdesk-phi.vercel.app` |
+| App | Hosted at |
+| --- | --- |
+| LoopDesk | <https://loopdesk-sigma.vercel.app> |
+| ScopeDesk | <https://scopedesk-chi.vercel.app> |
+| FollowDesk | <https://followdesk-phi.vercel.app> |
 
-Production `APP_ENV`, exact trusted hosts and cross-app origins are configured. No database or session/vault secret was sent to Vercel, and no deployment was created. Preview configuration remains separate and incomplete. Do not point a preview at production data.
+## Where it runs
 
-## Required environment names
+- **Application:** a Vercel project on the free Hobby plan (Python/Flask runtime; `app.py` exports `app`, `pyproject.toml` declares the entrypoint and the dependencies Vercel installs, including `cryptography` for the Fernet vault).
+- **Database:** a Neon PostgreSQL database on Neon's free plan, added through the Vercel Marketplace, separate from the other two apps. The app uses Neon's pooled endpoint; migrations use the direct, unpooled endpoint.
+
+Nothing here needs a paid plan. If a free limit blocks a step, stop and change the design instead of upgrading.
+
+## Environment
 
 | App | Database credential | Session secret | Other required production settings |
 | --- | --- | --- | --- |
@@ -18,17 +23,22 @@ Production `APP_ENV`, exact trusted hosts and cross-app origins are configured. 
 | ScopeDesk | `SCOPEDESK_DATABASE_URL` | `SCOPEDESK_SECRET_KEY` | `APP_ENV`, `SCOPEDESK_TRUSTED_HOSTS`, `SCOPEDESK_LOOPDESK_URL` |
 | FollowDesk | `FOLLOWDESK_DATABASE_URL` | `FOLLOWDESK_SECRET_KEY` | `APP_ENV`, `FOLLOWDESK_TRUSTED_HOSTS`, `FOLLOWDESK_LOOPDESK_URL`, `FOLLOWDESK_VAULT_KEY` |
 
-Session secrets and FollowDesk's Fernet key have been generated separately for production and preview under each project's ignored `.local/deployment/secrets.json`. Values were not printed. Retain existing generated values when configuring their matching environment; do not regenerate or expose them in source, screenshots or chat. Store runtime secrets as protected provider variables. This file is not silently loaded by Flask and is excluded from archives/deployments.
+Session secrets (at least 32 characters) and FollowDesk's Fernet vault key are generated randomly per environment and stored as write-only (sensitive) variables; the vault key encrypts the CRM grant tokens at rest. Credentials live in the provider's settings, never in source, chat or logs. Production and preview use separate databases and secrets. Production refuses SQLite and missing or placeholder secrets, trusted hosts or vault key. Request limits are keyed on the visitor's address: behind Vercel that is the platform-set `X-Vercel-Forwarded-For` header (Vercel overwrites client-supplied values), elsewhere forwarding headers are ignored because anyone could spoof them.
 
-## Remaining execution
+## Release procedure, in order
 
-1. Connect the Neon app or provision the integration through Vercel. No Neon integration is currently installed in the team. Confirm any paid plan before creating a charge. Use new app-specific database credentials, separate preview/production data and a dedicated test database. Do not repurpose another project's database.
-2. Configure the database credentials and protected runtime secrets. Verify required variable names without printing their values. Provider Secret values may not be available through a normal environment pull; use explicitly authorised migration credentials rather than assuming a pull reproduces production secrets.
-3. SQLite and PostgreSQL suites now pass for all three apps in CI. FollowDesk checks out LoopDesk alongside it and gives both sides disposable schemas for actual HTTP integration tests. See `artifacts/ci-verification.json` for tested commits and run links. Verify connectivity/TLS and the relevant provider-specific behaviour against dedicated Neon test credentials after provisioning.
-4. Apply the versioned migrations once, before traffic, using `python -m flask --app app migrate` from each correctly configured app. No migrations run at import or deployment build time. Record the schema/migration version and test results.
-5. Run `python scripts/prepare-suite.py --target preview` from FollowDesk after any source change. It reads verified `.vercel/project.json` links and writes each app's allowlisted `.local/deployment/runtime-payload.json` and checksum manifest. Inspect exact project IDs and targets before using the authenticated Vercel deployment tool. Private data, secrets, databases, tests and recordings are excluded.
-6. Linux dependency installation and real production Fernet tests now pass in CI using the pinned [cryptography release](https://pypi.org/project/cryptography/50.0.2/). Confirm installation on the actual Vercel runtime as well. The Flask entrypoint and public asset arrangement follow the [Vercel Flask guide](https://vercel.com/docs/frameworks/backend/flask).
-7. Execute the deployed browser journey across all three apps, including pairing, exact review, a simulated receipt, a synthetic reply and repeat-safe CRM history. Verify real HTTPS, cookies, host/origin controls, cross-workspace denial, outage recovery and provider request limits. Resolve any deployment protection using the existing account's authorised access. Do not weaken protection just to pass an automated check.
-8. Publish/promote only after those checks pass. Add tested public links to the CV only under the user's separate CV instructions. Submission remains manual.
+1. Run each app's suite (`python scripts/manage.py test`; the PostgreSQL jobs run in GitHub Actions) and the local three-app browser journey (`python scripts/manage.py browser`).
+2. Apply migrations before deploying code that needs them: `python -m flask --app app migrate` in each app, with its database variable set to the unpooled Neon URL. Migrations never run at import or during a build, and are additive, so the previous deployment keeps working while the new schema is in place.
+3. Run `python scripts/prepare-suite.py --target production` from this repository. It reads each project's link, writes the allowlisted runtime payload (runtime code, assets, migrations, dependency configuration) with a checksum manifest bound to the project, and excludes tests, screenshots, databases, credentials and private material. Deploy each payload through Vercel's deployments API.
+4. Verify the hosted apps: `python scripts/live-smoke.py`, then the three-app browser journey with `FOLLOWDESK_URL`, `LOOPDESK_URL` and `SCOPEDESK_URL` set to the hosted origins. Record the results in [verification](verification.md).
 
-The GitHub repositories `f20230125-sudo/loopdesk`, `scopedesk` and `followdesk` now contain the reviewed source, screenshots and recordings, and their CI suites pass. Publication permission does not supply missing provider connections. No full dependency-advisory scan, human five-minute usability study or production security certification is claimed.
+A weekly GitHub Actions workflow (`live-smoke.yml`) runs the smoke check against the hosted app. FollowDesk's CI checks out LoopDesk next to it, so the integration tests run against the real CRM code on both SQLite and PostgreSQL. A coverage-checked advisory scan covers all 20 pinned runtime and test packages across the three apps (`artifacts/dependency-audit-verification.json`).
+
+## Defects that only showed up when hosted
+
+- Vercel installs from `pyproject.toml`, not `requirements.txt`, so the dependency list is duplicated there.
+- A function-local `import re` inside the non-production branch of `create_app` made `re` unbound in the production branch, and publishing a plan returned a 500 on the hosted app only. Production-only branches are not covered by the local suite, so every deployment is followed by the hosted journey.
+
+## Free-tier behaviour
+
+Neon suspends an idle database, so the first request after a quiet period can take a second or two longer. FollowDesk calls LoopDesk's API for connection status and CRM context (four-second timeout); if LoopDesk is unavailable, local pausing, stopping and recording outcomes keep working and the connection page says the status could not be checked.

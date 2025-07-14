@@ -70,6 +70,25 @@ def source_activities(issuer):
     with issuer["app"].app_context(): return loop_db().all("SELECT * FROM activities WHERE kind='followdesk'")
 
 
+def test_pair_redirect_and_connection_detects_real_revocation(app,db,workspace,issuer):
+    from conftest import session_for
+    client=app.test_client()
+    token=session_for(client,workspace)
+    pairing=code(issuer)
+    response=client.post("/connection",data=dict(csrf_token=token,pairing_code=pairing))
+    assert response.status_code==303 and response.headers["Location"]=="/enroll"
+    assert pairing not in response.headers["Location"]
+    response=client.get("/enroll")
+    assert b'Connected to this LoopDesk demo' in response.data
+    assert b'Connected until' in client.get("/connection").data
+    assert b'1 of 6 done' in client.get("/queue").data
+    assert client.post("/connection",data=dict(csrf_token=token,pairing_code=pairing)).status_code==422
+    with issuer["app"].app_context():
+        with loop_db().transaction(): loop_db().execute("UPDATE outreach_grants SET revoked=1 WHERE workspace_id=?",(issuer["wid"],))
+    assert b'Revoked' in client.get("/connection").data
+    assert b'Next: Connect LoopDesk.' in client.get("/queue").data
+
+
 def test_real_http_lost_ack_retries_without_duplicate(db,workspace,plan,issuer,monkeypatch):
     context=connect(db,workspace,issuer)
     eid=run(db,workspace,plan,context)

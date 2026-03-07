@@ -1,0 +1,57 @@
+{
+  "verifiedAt": "2026-10-26 17:48:02 UTC",
+  "teamAccessVerified": true,
+  "projectsCreatedAndLinked": true,
+  "secretValuesIncluded": false,
+  "applications": [
+    {
+      "application": "loopdesk",
+      "projectId": "prj_PBu1fIAONvCoQBLbLptQDntykAUp",
+      "assignedHostname": "loopdesk-sigma.vercel.app",
+      "productionKeysPresent": [
+        "APP_ENV",
+        "LOOPDESK_TRUSTED_HOSTS",
+        "LOOPDESK_FOLLOWDESK_URL"
+      ],
+      "missingProductionKeys": [
+        "DATABASE_URL",
+        "SECRET_KEY"
+      ],
+      "deployed": false,
+      "postgresVerified": false
+    },
+    {
+      "application": "scopedesk",
+      "projectId": "prj_3ZZAml6EwIlwO9DAZTPkS7ip1XjX",
+      "assignedHostname": "scopedesk-chi.vercel.app",
+      "productionKeysPresent": [
+        "APP_ENV",
+        "SCOPEDESK_TRUSTED_HOSTS",
+        "SCOPEDESK_LOOPDESK_URL"
+      ],
+      "missingProductionKeys": [
+        "SCOPEDESK_DATABASE_URL",
+        "SCOPEDESK_SECRET_KEY"
+      ],
+      "deployed": false,
+      "postgresVerified": false
+    },
+    {
+      "application": "followdesk",
+      "projectId": "prj_RWkG4vd3qu37euRqOmJ6JToV6m58",
+      "assignedHostname": "followdesk-phi.vercel.app",
+      "productionKeysPresent": [
+        "APP_ENV",
+        "FOLLOWDESK_TRUSTED_HOSTS",
+        "FOLLOWDESK_LOOPDESK_URL"
+      ],
+      "missingProductionKeys": [
+        "FOLLOWDESK_DATABASE_URL",
+        "FOLLOWDESK_SECRET_KEY",
+        "FOLLOWDESK_VAULT_KEY"
+      ],
+      "deployed": false,
+      "postgresVerified": false
+    }
+  ]
+}

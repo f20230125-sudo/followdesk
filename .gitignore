@@ -1,0 +1,11 @@
+.venv/
+.local/
+instance/
+__pycache__/
+.pytest_cache/
+.env
+.env.*
+!.env.example
+.vercel/
+private/
+*.sqlite3*

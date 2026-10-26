@@ -1,5 +1,6 @@
 """Audit every pinned runtime/test dependency, including conditional platform pins."""
 from pathlib import Path
+import argparse
 import json
 import re
 
@@ -8,6 +9,10 @@ WORK=ROOT.parent
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify",action="store_true")
+    parser.add_argument("--report",type=Path,default=ROOT/"artifacts/dependency-audit.json")
+    args=parser.parse_args()
     pins={}
     sources=[]
     for project in ("loopdesk","scopedesk","followdesk"):
@@ -31,6 +36,15 @@ def main():
     (folder/"requirements.txt").write_text("".join(f"{name}=={pins[name]}\n" for name in sorted(pins)),encoding="utf-8")
     report=dict(packageCount=len(pins),locks=sources,conditionalPinsIncluded=True,scope="All three runtime and test dependency locks; browser tooling and GitHub Actions are separate tools")
     (folder/"scope.json").write_text(json.dumps(report,indent=2),encoding="utf-8")
+    if args.verify:
+        audit=json.loads(args.report.read_text(encoding="utf-8"))
+        rows=audit["dependencies"]
+        actual={re.sub(r"[-_.]+","-",row["name"]).lower():row.get("version") for row in rows}
+        missing=sorted(set(pins)-set(actual))
+        if actual!=pins or len(actual)!=len(rows) or any(row.get("skip_reason") or not isinstance(row.get("vulns"),list) for row in rows):
+            raise ValueError("Audit coverage does not match all locked versions; missing: "+", ".join(missing))
+        if any(row.get("vulns") for row in rows):raise ValueError("Known vulnerabilities found; review the audit JSON before release")
+        report.update(allLockedVersionsAudited=True,knownVulnerabilities=0)
     print(json.dumps(report))
 
 

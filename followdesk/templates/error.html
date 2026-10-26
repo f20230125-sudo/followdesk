@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<section class="card narrow"><p class="eyebrow">REQUEST {{ code }}</p><h1>Let's resolve this.</h1><p role="alert">{{ message }}</p><a class="button secondary" href="{{ url_for('queue') if workspace else url_for('landing') }}">Return to {{ 'work queue' if workspace else 'overview' }}</a></section>{% endblock %}

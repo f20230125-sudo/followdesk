@@ -1,0 +1,9 @@
+[project]
+name = "followdesk"
+version = "0.1.0"
+description = "Reviewed sales outreach with simulated delivery and scoped CRM integration"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

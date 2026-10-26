@@ -1,0 +1,3 @@
+﻿Event ID,Run ID,Recorded UTC,Kind,Origin,Statement,CRM sync
+70b89a53447a4afd80bbe980c5df5140,f12df687a5964f178821111d413799ab,2026-10-26T17:40:45.353882+00:00,demo_delivery,Simulated delivery,Message 'Fictional scope discussion' delivered to the demo inbox for contact01@organisation01.example.com. No email was sent.,Synced
+6f2a71bd7df44e9a9e6c4edf29ad7c1e,f12df687a5964f178821111d413799ab,2026-10-26T17:40:46.174138+00:00,synthetic_reply,Synthetic inbox action,Thanks. Please arrange a discussion of the remaining scope questions.,Synced

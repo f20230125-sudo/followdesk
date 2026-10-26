@@ -1,0 +1,52 @@
+{
+  "recordedAt": "2026-10-26T16:16:58.104Z",
+  "captureWallSeconds": 75.19,
+  "captions": "Presentation captions over actual local application responses. Pairing credentials excluded; fictional data and simulated inbox.",
+  "chapters": [
+    {
+      "seconds": 0.02,
+      "title": "FollowDesk / Reviewed sales outreach",
+      "body": "Independent software prototype: existing CRM enquiry → reviewed message → simulated inbox → recorded outcome. Fictional data throughout."
+    },
+    {
+      "seconds": 7.23,
+      "title": "01 / Start with the existing enquiry",
+      "body": "Live, limited LoopDesk access reads the current contact and scope last received by the CRM. Enrolment does not send anything."
+    },
+    {
+      "seconds": 14.84,
+      "title": "02 / Edit the message with its context visible",
+      "body": "The plan version is pinned. Original CRM next action and received-scope identity remain visible. Internal review does not mean customer acceptance."
+    },
+    {
+      "seconds": 23.06,
+      "title": "03 / Confirm the exact saved snapshot",
+      "body": "Recipient, content, schedule and live CRM context are checked. A changed draft or recipient invalidates the review; unsaved text cannot silently replace it."
+    },
+    {
+      "seconds": 31.63,
+      "title": "04 / One safe, immutable delivery receipt",
+      "body": "Delivery writes a receipt, advances the step and queues CRM history together. This built-in inbox is simulated: no real email is sent."
+    },
+    {
+      "seconds": 39.8,
+      "title": "05 / A reply stops future work",
+      "body": "The synthetic reply cancels pending steps while preserving the delivered message. Opt-outs also suppress matching contacts and destinations."
+    },
+    {
+      "seconds": 47.86,
+      "title": "06 / Outcomes stay separate from CRM delivery",
+      "body": "Counts come from immutable events. Two history events await acknowledgement; retrying CRM synchronisation never repeats the message."
+    },
+    {
+      "seconds": 54.53,
+      "title": "07 / Real CRM history, repeat-safe updates",
+      "body": "LoopDesk receives exactly one delivery and one reply event. Its stage, owner, value, next action and tasks are preserved."
+    },
+    {
+      "seconds": 62.58,
+      "title": "Local demonstration / verified boundaries",
+      "body": "Real local apps and SQLite data; explicitly simulated message transport. PostgreSQL, production vault dependencies and hosted HTTPS still require verification."
+    }
+  ]
+}

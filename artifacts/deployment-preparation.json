@@ -1,0 +1,33 @@
+{
+  "projectsLinked": true,
+  "credentialsIncluded": false,
+  "databasesIncluded": false,
+  "published": false,
+  "target": "preview",
+  "applications": [
+    {
+      "application": "loopdesk",
+      "projectId": "prj_PBu1fIAONvCoQBLbLptQDntykAUp",
+      "files": 35,
+      "bytes": 137367,
+      "sourceSha256": "d07bb2eb5d8a8efed1b61e7148f4be3909cee1c10e268f10dc5d10f8bd3a2b24",
+      "sent": false
+    },
+    {
+      "application": "scopedesk",
+      "projectId": "prj_3ZZAml6EwIlwO9DAZTPkS7ip1XjX",
+      "files": 25,
+      "bytes": 107804,
+      "sourceSha256": "61682de899e3580d11fac6a5295c902cceeff3c24651b8c645ca214e87fd2a21",
+      "sent": false
+    },
+    {
+      "application": "followdesk",
+      "projectId": "prj_RWkG4vd3qu37euRqOmJ6JToV6m58",
+      "files": 28,
+      "bytes": 109799,
+      "sourceSha256": "c05527d308559d2c2a9c9a4f566a7847b85566df59f461a8ac0bd94090249e9e",
+      "sent": false
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+name: FollowDesk checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  sqlite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: followdesk
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: followdesk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/loopdesk
+          ref: main
+          path: loopdesk
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: python -m venv .venv
+      - run: .venv/bin/python -m pip install -r requirements-dev.txt
+      - run: test -f ../loopdesk/loopdesk/outreach.py
+      - run: .venv/bin/python scripts/manage.py test
+  postgres:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: followdesk
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: followdesk_ci
+          POSTGRES_PASSWORD: ephemeral_test_only
+          POSTGRES_DB: followdesk_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U followdesk_ci -d followdesk_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      FOLLOWDESK_TEST_DATABASE_URL: postgresql://followdesk_ci:ephemeral_test_only@localhost:5432/followdesk_ci
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: followdesk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/loopdesk
+          ref: main
+          path: loopdesk
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: python -m venv .venv
+      - run: .venv/bin/python -m pip install -r requirements-dev.txt
+      - run: test -f ../loopdesk/loopdesk/outreach.py
+      - run: .venv/bin/python scripts/manage.py test-postgres

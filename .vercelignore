@@ -1,5 +1,6 @@
 .git
 .venv
+.audit
 .local
 instance
 private

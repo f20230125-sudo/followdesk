@@ -1,4 +1,5 @@
 .venv/
+.audit/
 .local/
 instance/
 __pycache__/

@@ -86,6 +86,15 @@ def render_text(source,context):
     return template.substitute(values)
 
 
+def preview_message(kind,subject,body):
+    if kind not in {"message","task"}: raise ValidationError("Choose a listed step type.")
+    subject=text(subject,"Subject",200,kind=="message")
+    body=text(body,"Message or task instructions",4096)
+    if "\n" in subject or "\t" in subject: raise ValidationError("Subject must be a single line.")
+    sample=dict(contact=dict(name="Alex Example (fictional)"),organisation=dict(name="Fictional Cedar Recycling"),title="Fictional laptop collection enquiry",next_action="Discuss the fictional collection scope",received_scopes=[dict(revision=2)])
+    return dict(subject=text(render_text(subject,sample),"Rendered subject",200,kind=="message"),body=text(render_text(body,sample),"Rendered body",4096))
+
+
 def publish_plan(db,wid,name,steps,family=None):
     name=text(name,"Plan name",160)
     if not isinstance(steps,list) or not 1<=len(steps)<=5:
@@ -430,6 +439,30 @@ def report(db,wid):
     runs=db.all("SELECT * FROM enrollments WHERE workspace_id=?",(wid,))
     events=db.all("SELECT * FROM events WHERE workspace_id=? ORDER BY created_at,sequence,id",(wid,))
     return dict(runs=len(runs),active=sum(r["status"]=="Active" for r in runs),paused=sum(r["status"]=="Paused" for r in runs),stopped=sum(r["status"]=="Stopped" for r in runs),completed=sum(r["status"]=="Completed" for r in runs),deliveries=db.one("SELECT COUNT(*) AS n FROM receipts WHERE workspace_id=?",(wid,))["n"],replies=len({e["enrollment_id"] for e in events if e["kind"] in {"synthetic_reply","reviewer_reply"}}),meetings=len({e["enrollment_id"] for e in events if e["kind"]=="meeting"}),pending=sum(e["sync_status"]!="Synced" for e in events),as_of=stamp())
+
+
+def demo_progress(db,wid,connected):
+    runs=db.all("SELECT id,status FROM enrollments WHERE workspace_id=? ORDER BY created_at,id",(wid,))
+    editable=None
+    for run in runs:
+        step=current_step(db,wid,run["id"])
+        if run["status"] in {"Active","Paused"} and step and step["kind"]=="message":
+            editable=run
+            break
+    saved=db.one("SELECT id FROM audit_events WHERE workspace_id=? AND action='draft_saved' LIMIT 1",(wid,))
+    receipt=db.one("SELECT id FROM receipts WHERE workspace_id=? ORDER BY created_at,id LIMIT 1",(wid,))
+    events=db.all("SELECT kind,sync_status FROM events WHERE workspace_id=?",(wid,))
+    run_id=(editable or (runs[0] if runs else {})).get("id")
+    steps=[
+        dict(label="Connect LoopDesk",done=connected,endpoint="connection",args={},hint="Open LoopDesk's Outreach connection in a new tab, create a one-use code, paste it here."),
+        dict(label="Start a follow-up from an existing enquiry",done=bool(runs),endpoint="enroll",args={},hint="Choose an open LoopDesk enquiry and a published plan. Creating a run sends nothing."),
+        dict(label="Review and save the first message",done=bool(saved),endpoint="run_detail" if editable else "enroll",args=dict(eid=editable["id"],_anchor="message-editor") if editable else {},hint="Check the fictional recipient and text, then save the draft. Start another run if no message is editable."),
+        dict(label="Deliver it to the demo inbox",done=bool(receipt),endpoint="run_detail" if editable else "enroll",args=dict(eid=editable["id"],_anchor="message-editor") if editable else {},hint="Review the saved draft, confirm its exact text, then explicitly deliver. No real email is sent."),
+        dict(label="Record a reply or outcome",done=any(e["kind"] in OUTCOMES for e in events),endpoint="mail" if receipt else "run_detail" if run_id else "enroll",args=dict(rid=receipt["id"]) if receipt else dict(eid=run_id,_anchor="record-outcome") if run_id else {},hint="Record a synthetic reply from its receipt, or a labelled outcome on the run."),
+        dict(label="Sync history to LoopDesk",done=bool(events) and all(e["sync_status"]=="Synced" for e in events),endpoint="reports",args={},hint="Retry pending CRM history until no events remain pending. Sync never repeats delivery.")]
+    next_step=next((step for step in steps if not step["done"]),None)
+    for step in steps: step["state"]="done" if step["done"] else "next" if step is next_step else "later"
+    return dict(steps=steps,next=next_step,complete=next_step is None,done=sum(step["done"] for step in steps))
 
 
 def csv_export(events):
